@@ -27,44 +27,67 @@ class Patches(Dataset):
     def len(self):
         return len(os.listdir(self.raw_dir)) - 1
 
-    def __init__(self, dataset_name, num_batches=NUM_BATCHES, \
+    def __init__(self, dataset_name, num_batches=NUM_BATCHES, mp_on=True, overwrite=False, \
                     transform=None, pre_transform=None, pre_filter=None):
         self.dataset_name = dataset_name
         self.num_batches = num_batches
-        super().__init__(None, transform, pre_transform, pre_filter)
-        
+        self.mp_on = mp_on
+        self.overwrite = overwrite
+
         filenames = os.listdir(self.raw_dir)
         filenames.remove("done")
         self.filenames_batched = np.array_split(filenames, self.num_batches)
         self.indices_batched = np.array_split(np.arange(len(filenames)), self.num_batches)
-        
+    
+        super().__init__(None, transform, pre_transform, pre_filter)
+
         self.loaded_batch_ind = None
         self.loaded_batch = None
 
+    def process_one_batch(self, batch_ind):
+        if not self.overwrite and os.path.exists(self.processed_paths[batch_ind]):
+            print(f"Batch {batch_ind} already processed")
+            return
+        print(f"Processing batch {batch_ind}")
+        filenames = self.filenames_batched[batch_ind]
+        data_list = []
+        if self.mp_on:
+            func = lambda x: x # no progress bar
+        else:
+            func = tqdm.tqdm
+        for filename in func(filenames):
+            data = np.load(os.path.join(self.raw_dir, filename))
+
+            x = torch.tensor(data["peaks"]["val"].reshape(-1, 1), dtype=torch.float)
+            y = torch.tensor(data["labels"], dtype=torch.float)
+            edge_index = torch.tensor(data["edges"]["keys"], dtype=torch.int).T
+            edge_attr = torch.tensor(np.stack((data["edges"]["sep"], \
+                                                data["edges"]["ang"])), dtype=torch.float).T
+
+            datapoint = Data(x=x, y=y, edge_index=edge_index, edge_attr=edge_attr)
+            data_list.append(datapoint)
+        
+        if self.pre_filter is not None:
+            data_list = [data for data in data_list if self.pre_filter(data)]
+        
+        if self.pre_transform is not None:
+            data_list = [self.pre_transform(data) for data in data_list]
+        
+        torch.save(data_list, self.processed_paths[batch_ind])
+        return
+
     def process(self):
-        for batch_ind, filenames in \
-                zip(range(self.num_batches), self.filenames_batched):
-            print(f"Processing batch {batch_ind}")
-            data_list = []
-            for filename in tqdm.tqdm(filenames):
-                data = np.load(os.path.join(self.raw_dir, filename))
-
-                x = torch.tensor(data["peaks"]["val"].reshape(-1, 1), dtype=torch.float)
-                y = torch.tensor(data["labels"], dtype=torch.float)
-                edge_index = torch.tensor(data["edges"]["keys"], dtype=torch.int).T
-                edge_attr = torch.tensor(np.stack((data["edges"]["sep"], \
-                                                   data["edges"]["ang"])), dtype=torch.float).T
-
-                datapoint = Data(x=x, y=y, edge_index=edge_index, edge_attr=edge_attr)
-                data_list.append(datapoint)
-            
-            if self.pre_filter is not None:
-                data_list = [data for data in data_list if self.pre_filter(data)]
-            
-            if self.pre_transform is not None:
-                data_list = [self.pre_transform(data) for data in data_list]
-            
-            torch.save(data, self.processed_paths[batch_ind])
+        if self.mp_on:
+            import multiprocessing as mp
+            pool = mp.Pool(mp.cpu_count())
+            for _ in tqdm.tqdm(pool.imap_unordered(self.process_one_batch, \
+                            range(self.num_batches)), total=self.num_batches):
+                pass
+            pool.close()
+            pool.join()
+        else:
+            for batch_ind in range(self.num_batches):
+                self.process_one_batch(batch_ind)
 
     def index_to_batch(self, idx):
         for batch_ind, indices in enumerate(self.indices_batched):
