@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.data import Dataset, Data
-import os, tqdm
+import os, tqdm, shutil
 import numpy as np
 
 PEAKS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/peaks/'
@@ -34,8 +34,9 @@ class Patches(Dataset):
         self.mp_on = mp_on
         
         if overwrite:
-            for filename in os.listdir(self.processed_dir):
-                os.remove(os.path.join(self.processed_dir, filename))
+            shutil.rmtree(self.processed_dir)
+        if not os.path.exists(self.processed_dir):
+            os.makedirs(self.processed_dir)
 
         filenames = os.listdir(self.raw_dir)
         filenames.remove("done")
@@ -63,7 +64,7 @@ class Patches(Dataset):
 
             x = torch.tensor(data["peaks"]["val"].reshape(-1, 1), dtype=torch.float)
             y = torch.tensor(data["labels"], dtype=torch.float)
-            edge_index = torch.tensor(data["edges"]["keys"], dtype=torch.int).T
+            edge_index = torch.tensor(data["edges"]["keys"], dtype=torch.int).T - 1
             edge_attr = torch.tensor(np.stack((data["edges"]["sep"], \
                                                 data["edges"]["ang"])), dtype=torch.float).T
 
