@@ -79,6 +79,9 @@ if __name__ == "__main__":
     start_ind = 0
     for subset in ["train", "validation", "test"]:
         data = all_data[subset]
+        if subset != "test":
+            start_ind += len(data)
+            continue  
         args = zip(start_ind + np.arange(len(data)), data, repeat(labels), repeat(radius))
         print(f"Processing {subset} set with {len(data)} images")
         start_ind += len(data)
@@ -89,4 +92,6 @@ if __name__ == "__main__":
     pool.join()
 
     print(f"Total time taken: {time.time() - start_time:.2f} seconds")
-            
+
+    print("Done! touching a completion file")
+    Path(output_dir / "done").touch()            
