@@ -1,10 +1,19 @@
 import torch
 from torch_geometric.data import Dataset, Data
-import os, tqdm, shutil
+import os, tqdm, shutil, sys
 import numpy as np
 
-PEAKS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/peaks/'
-GRAPHS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/graphs/'
+if os.uname()[1] == "marmalade.physics.upenn.edu":
+    print("I'm on marmalade!")
+    PEAKS_PATH = lambda _: None
+    GRAPHS_PATH = lambda _: "/data2/shared/shubh/graphs/"
+elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
+    print("I'm on perlmutter!")
+    PEAKS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/peaks/'
+    GRAPHS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/graphs/'
+else:
+    sys.exit("I don't know what computer I'm on!")
+
 NUM_BATCHES = 100
 
 class Patches(Dataset):
