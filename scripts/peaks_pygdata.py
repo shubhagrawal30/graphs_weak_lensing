@@ -32,7 +32,10 @@ class Patches(Dataset):
         self.dataset_name = dataset_name
         self.num_batches = num_batches
         self.mp_on = mp_on
-        self.overwrite = overwrite
+        
+        if overwrite:
+            for filename in os.listdir(self.processed_dir):
+                os.remove(os.path.join(self.processed_dir, filename))
 
         filenames = os.listdir(self.raw_dir)
         filenames.remove("done")
@@ -45,7 +48,7 @@ class Patches(Dataset):
         self.loaded_batch = None
 
     def process_one_batch(self, batch_ind):
-        if not self.overwrite and os.path.exists(self.processed_paths[batch_ind]):
+        if os.path.exists(self.processed_paths[batch_ind]):
             print(f"Batch {batch_ind} already processed")
             return
         print(f"Processing batch {batch_ind}")
