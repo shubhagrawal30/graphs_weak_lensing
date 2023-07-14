@@ -3,12 +3,14 @@ from torch_geometric.data import Dataset, Data
 import os, tqdm, shutil, sys
 import numpy as np
 
-if os.uname()[1] == "marmalade.physics.upenn.edu":
+if os.uname()[1].endswith("marmalade.physics.upenn.edu"):
     print("I'm on marmalade!")
+    SYSTEM_NAME = "marmalade"
     PEAKS_PATH = lambda _: None
     GRAPHS_PATH = lambda _: "/data2/shared/shubh/graphs/"
 elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
     print("I'm on perlmutter!")
+    SYSTEM_NAME = "perlmutter"
     PEAKS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/peaks/'
     GRAPHS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/graphs/'
 else:
@@ -34,7 +36,11 @@ class Patches(Dataset):
         return [f'data{ind}.pt' for ind in range(self.num_batches)]
 
     def len(self):
-        return len(os.listdir(self.raw_dir)) - 1
+        if SYSTEM_NAME == "perlmutter":
+            return len(os.listdir(self.raw_dir)) - 1
+        elif SYSTEM_NAME == "marmalade":
+            with open(os.path.join(self.processed_dir, "done"), "r") as f:
+                return int(f.read())  
 
     def __init__(self, dataset_name, num_batches=NUM_BATCHES, mp_on=True, overwrite=False, \
                     transform=None, pre_transform=None, pre_filter=None):
@@ -48,9 +54,10 @@ class Patches(Dataset):
             os.makedirs(self.processed_dir)
 
         filenames = os.listdir(self.raw_dir)
-        filenames.remove("done")
+        if "done" in filenames: 
+            filenames.remove("done")
         self.filenames_batched = np.array_split(filenames, self.num_batches)
-        self.indices_batched = np.array_split(np.arange(len(filenames)), self.num_batches)
+        self.indices_batched = np.array_split(np.arange(self.len()), self.num_batches)
     
         super().__init__(None, transform, pre_transform, pre_filter)
 
