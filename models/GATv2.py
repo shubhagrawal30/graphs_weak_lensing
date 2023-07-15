@@ -8,12 +8,13 @@
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GATv2Conv
+from torch_geometric.nn import GATv2Conv, global_mean_pool, BatchNorm
 from torch.nn import Linear
+from torch_geometric.nn import aggr
 
 class GATv2(torch.nn.Module):
     def __init__(self, node_features, edge_features, num_classes, \
-                 hidden_channels=64, num_layers=3, heads=8, dropout=0.1, negative_slope=0.2):
+                 hidden_channels=8, num_layers=3, heads=8, dropout=0, negative_slope=0.2):
         super(GATv2, self).__init__()
         self.node_features = node_features
         self.edge_features = edge_features
@@ -24,18 +25,25 @@ class GATv2(torch.nn.Module):
         self.dropout = dropout
         self.negative_slope = negative_slope
 
+        self.node_norm = BatchNorm(node_features)
+        self.edge_norm = BatchNorm(edge_features)
         self.convs = torch.nn.ModuleList()
         self.convs.append(GATv2Conv(node_features, hidden_channels, \
                             edge_dim=edge_features, heads=heads, dropout=dropout))
         for _ in range(num_layers - 1):
             self.convs.append(GATv2Conv(hidden_channels * heads, hidden_channels, \
                             edge_dim=edge_features, heads=heads, dropout=dropout))
+            
+        self.readout = aggr.SoftmaxAggregation(learn=True)
         self.linear = Linear(hidden_channels * heads, num_classes)
 
     def forward(self, data):
         x, edge_index, edge_attr = data.x, data.edge_index.to(torch.int64), data.edge_attr
+        x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
         for conv in self.convs:
             x = conv(x, edge_index, edge_attr)
             x = F.leaky_relu(x, negative_slope=self.negative_slope)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.readout(x, data.batch)
         x = self.linear(x)
         return x
