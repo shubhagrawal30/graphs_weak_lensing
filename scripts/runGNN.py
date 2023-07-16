@@ -1,7 +1,6 @@
 print("importing GATv2")
 import sys, pathlib, time
 sys.path.append("../models/")
-from GATv2 import GATv2, set_up_model, train, test, predict
 
 print("importing Patches")
 from peaks_pygdata import Patches
@@ -18,8 +17,13 @@ from torch_geometric.loader import DataLoader
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
-num_epochs = 25
-out_name = "20230714_GATv2"
+# from GATv2 import GATv2, set_up_model, train, test, predict
+# out_name = "20230714_GATv2"
+
+from GINE import GINE, set_up_model, train, test, predict
+out_name = "20230714_GINE"
+
+num_epochs = 5
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 
 print("loading dataset")

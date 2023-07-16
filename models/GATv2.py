@@ -108,5 +108,3 @@ def predict(loader, model, optimizer, criterion, scaler, indices, device):
             gc.collect()
             torch.cuda.empty_cache()
     return out.reshape(-1, 2), true.reshape(-1, 6)[:, indices]
-
-
