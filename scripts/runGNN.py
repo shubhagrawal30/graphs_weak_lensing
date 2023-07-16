@@ -1,7 +1,7 @@
 print("importing GATv2")
 import sys, pathlib, time
 sys.path.append("../models/")
-from GATv2 import GATv2
+from GATv2 import GATv2, set_up_model, train, test, predict
 
 print("importing Patches")
 from peaks_pygdata import Patches
@@ -20,7 +20,7 @@ print(device)
 
 num_epochs = 25
 out_name = "20230714_GATv2"
-pathlib.Path(f"../outs/{out_name}").mkdir(parents=True, exist_ok=True)
+pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 
 print("loading dataset")
 dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
@@ -48,75 +48,26 @@ for i, data in enumerate(train_loader):
 scaler.fit(true.reshape(-1, 6)[:, indices])
 
 print("initializing model")
-model = GATv2(dataset.num_features, dataset.num_edge_features, num_classes, \
-                hidden_channels=8, num_layers=4, heads=8, dropout=0, \
-                negative_slope=0.2).to(device)
-
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-criterion = torch.nn.MSELoss()
-
-def train(loader):
-    model.train()
-    loss_all = 0
-    for data in tqdm.tqdm(loader):
-        data = data.to(device)
-        optimizer.zero_grad()
-        out = model(data).cpu()
-        true = data.y.reshape(-1, 6)[:, indices].cpu()
-        torch.cuda.empty_cache()
-        true = torch.tensor(scaler.transform(true), dtype=torch.float)
-        loss = criterion(out, true)
-        loss.backward()
-        loss_all += data.num_graphs * loss.item()
-        optimizer.step()
-        del data, out, true, loss
-        gc.collect()
-        torch.cuda.empty_cache()
-    return loss_all / len(loader.dataset)
-
-def test(loader):
-    model.eval()
-    with torch.no_grad():
-        error = 0
-        for data in tqdm.tqdm(loader):
-            data = data.to(device)
-            pred = model(data).cpu()
-            true = data.y.reshape(-1, 6)[:, indices].cpu()
-            true = torch.tensor(scaler.transform(true), dtype=torch.float)
-            error += torch.sum((pred - true) ** 2)
-            del data, pred, true
-            gc.collect()
-            torch.cuda.empty_cache()
-    return error / len(loader.dataset)
-
-def predict(loader):
-    model.eval()
-    out, true = np.array([]), np.array([])
-    for data in tqdm.tqdm(loader):
-        with torch.no_grad():
-            data = data.to(device)
-            out = np.append(out, scaler.inverse_transform(model(data).cpu().numpy()))
-            true = np.append(true, data.y.cpu().numpy())
-            del data
-            gc.collect()
-            torch.cuda.empty_cache()
-    return out.reshape(-1, 2), true.reshape(-1, 6)[:, indices]
+model, optimizer, criterion = set_up_model(dataset, num_classes, device)
+args = model, optimizer, criterion, scaler, indices, device
 
 # save all training and validation losses and the model with best validation loss
 best_val_loss = np.inf
 best_epoch = -1
 print("training")
-with open(f"../outs/{out_name}/log.txt", "w") as f:
-    for epoch in range(num_epochs):
+for epoch in range(num_epochs):
+    with open(f"../outs/{out_name}/log.txt", "a") as f:
         start = time.time()
         print(f"Epoch {epoch}")
-        train_loss = train(train_loader)
-        val_loss = test(val_loader)
+        train_loss = train(train_loader, *args)
+        val_loss = test(val_loader, *args)
 
         print(f'Epoch: {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
         f.write(f'Epoch: {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}\n')
         print(f"Time: {time.time() - start:.4f}s")
         f.write(f"Time: {time.time() - start:.4f}s\n")
+
+        torch.save(model.state_dict(), f"../outs/{out_name}/chkpts/{epoch}.pt")
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -132,9 +83,9 @@ torch.save(model.state_dict(), f"../outs/{out_name}/last_model.pt")
 
 def plotting(model, pred_true_filename, hist_filenames):
     print("predicting")
-    train_out, train_true = predict(train_loader)
-    val_out, val_true = predict(val_loader)
-    test_out, test_true = predict(test_loader)
+    train_out, train_true = predict(train_loader, *args)
+    val_out, val_true = predict(val_loader, *args)
+    test_out, test_true = predict(test_loader, *args)
 
     print("plotting")
     fig, axs = plt.subplots(1, 2, figsize=(10, 8))
