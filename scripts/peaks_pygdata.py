@@ -3,7 +3,7 @@ from torch_geometric.data import Dataset, Data
 import os, tqdm, shutil, sys
 import numpy as np
 
-if os.uname()[1].endswith("marmalade.physics.upenn.edu"):
+if os.uname()[1].endswith("marmalade.physics.upenn.edu") or os.uname()[1][:4] == "node":
     print("I'm on marmalade!")
     SYSTEM_NAME = "marmalade"
     PEAKS_PATH = lambda _: None

@@ -1,8 +1,9 @@
 import sys, pathlib, time, os
 sys.path.append("../models/")
 
-print("importing Patches")
+print("importing data modules")
 from peaks_pygdata import Patches
+from peaks_primitive import Histograms
 
 print("importing dependencies")
 from sklearn.preprocessing import MinMaxScaler
@@ -13,17 +14,14 @@ import joblib
 
 print("importing torch")
 import torch
-from torch_geometric.loader import DataLoader
+from torch.utils.data import DataLoader
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
-from GATv2 import GATv2, set_up_model, train, test, predict
-out_name = "20230720_GATv2"
+from PrimitiveNN import primitiveNN, set_up_model, train, test, predict
+out_name = "20230720_past"
 
-# from GINE import GINE, set_up_model, train, test, predict
-# out_name = "20230720_GINE"
-
-num_epochs = 10
+num_epochs = 100
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 overwrite_epochs = False
 overwrite_logs = False
@@ -36,20 +34,20 @@ else:
         f.write("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
 
 print("loading dataset")
-dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
-dataset = Patches(dataset_name)
+# dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
 orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
 indices = orig_labels.index("Om"), orig_labels.index("s8")
 num_classes = len(indices)
 
+dataset = Histograms()
 batch_size = 96
 train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
-# train_dataset, val_dataset, test_dataset = dataset[:batch_size*5], \
+# train_dataset, val_dataset, test_dataset = dataset[:batch_size*], \
 #     dataset[batch_size*10:batch_size*11], dataset[batch_size*11:batch_size*12]
 
 print(batch_size, len(train_dataset) / batch_size, \
-      len(train_dataset), len(val_dataset), len(test_dataset), len(dataset))
+        len(train_dataset), len(val_dataset), len(test_dataset), len(dataset))
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -61,8 +59,8 @@ try:
 except:
     scaler = MinMaxScaler()
     true = np.array([])
-    for i, data in tqdm.tqdm(enumerate(train_loader), total=len(train_loader)):
-        true = np.append(true, data.y)
+    for i, (data, label) in tqdm.tqdm(enumerate(train_loader), total=len(train_loader)):
+        true = np.append(true, label)
     scaler.fit(true.reshape(-1, 6)[:, indices])
     joblib.dump(scaler, f"../outs/{out_name}/scaler.pkl")
 
