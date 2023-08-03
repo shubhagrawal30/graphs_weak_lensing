@@ -125,7 +125,7 @@ def predict(loader, model, optimizer, criterion, scaler, indices, device):
     else:
         raise ValueError("loss_type must be either mse or nll")
 
-def base_set_up_model(dataset, num_classes, device, loss_type="mse"):
+def base_set_up_model(dataset, num_classes, device, loss_type="L1Loss"):
     global pred_type
     print("initializing model")
     if loss_type == "mse":
@@ -134,7 +134,9 @@ def base_set_up_model(dataset, num_classes, device, loss_type="mse"):
         criterion = neg_log_likelihood
         print("first half of predictions are means and second half are log variances")
         num_classes *= 2
+    elif loss_type == "L1Loss":
+        criterion = torch.nn.L1Loss()
     else:
-        raise ValueError("loss_type must be either mse or nll")
+        raise ValueError("loss_type must be either mse, L1Loss, or nll")
     pred_type = loss_type
     return num_classes, criterion

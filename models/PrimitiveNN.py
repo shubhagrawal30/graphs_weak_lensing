@@ -37,7 +37,7 @@ class primitiveNN(torch.nn.Module):
         x = self.layers[-1](x)
         return x
 
-def set_up_model(dataset, num_classes, device, loss_type="mse"):
+def set_up_model(dataset, num_classes, device, loss_type="L1Loss"):
     global pred_type
     print("initializing model")
     if loss_type == "mse":
@@ -46,12 +46,14 @@ def set_up_model(dataset, num_classes, device, loss_type="mse"):
         criterion = neg_log_likelihood
         print("first half of predictions are means and second half are log variances")
         num_classes *= 2
+    elif loss_type == "L1Loss":
+        criterion = torch.nn.L1Loss()
     else:
-        raise ValueError("loss_type must be either mse or nll")
+        raise ValueError("loss_type must be either mse, L1Loss, or nll")
     pred_type = loss_type
 
-    model = primitiveNN(dataset.num_features, num_classes, num_dense_layers=4, \
-                    dropout=0.1, negative_slope=0.2, dense_layer_size=128).to(device)
+    model = primitiveNN(dataset.num_features, num_classes, num_dense_layers=3, \
+                    dropout=0.1, negative_slope=0.2, dense_layer_size=256).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     return model, optimizer, criterion
 

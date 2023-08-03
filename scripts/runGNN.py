@@ -18,15 +18,15 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 from GATv2 import GATv2, set_up_model, train, test, predict
-out_name = "20230720_GATv2"
+out_name = "20230802_GATv2"
 
 # from GINE import GINE, set_up_model, train, test, predict
 # out_name = "20230720_GINE"
 
-num_epochs = 10
+num_epochs = 20
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
-overwrite_epochs = False
-overwrite_logs = False
+overwrite_epochs = True
+overwrite_logs = True
 
 if overwrite_logs:
     if os.path.exists(f"../outs/{out_name}/log.txt"):
@@ -42,11 +42,11 @@ orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
 indices = orig_labels.index("Om"), orig_labels.index("s8")
 num_classes = len(indices)
 
-batch_size = 96
+batch_size = 32 #96
 train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
-# train_dataset, val_dataset, test_dataset = dataset[:batch_size*5], \
-#     dataset[batch_size*10:batch_size*11], dataset[batch_size*11:batch_size*12]
+# train_dataset, val_dataset, test_dataset = dataset[:batch_size*20], \
+#     dataset[batch_size*20:batch_size*22], dataset[batch_size*22:batch_size*24]
 
 print(batch_size, len(train_dataset) / batch_size, \
       len(train_dataset), len(val_dataset), len(test_dataset), len(dataset))
@@ -85,8 +85,8 @@ for epoch in range(num_epochs):
         train_loss = train(train_loader, *args)
         val_loss = test(val_loader, *args)
 
-        print(f'Epoch: {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
-        f.write(f'Epoch: {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}\n')
+        print(f'Epoch: {epoch:03d}, Train Loss: {train_loss}, Val Loss: {val_loss}')
+        f.write(f'Epoch: {epoch:03d}, Train Loss: {train_loss}, Val Loss: {val_loss}\n')
         print(f"Time: {time.time() - start:.4f}s")
         f.write(f"Time: {time.time() - start:.4f}s\n")
 
@@ -184,12 +184,14 @@ def plotting_for_mse_loss(loader, pred_true_filename, hist_filenames):
 
 
 plotting = plotting_for_mse_loss
-plotting(train_loader, f"../outs/{out_name}/pred_true.png", f"../outs/{out_name}/hist.png")
+plotting(train_loader, f"../outs/{out_name}/train_pred_true.png", f"../outs/{out_name}/train_hist.png")
+plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
 
 if best_epoch != num_epochs - 1:
     print(f"Loading best model from epoch {best_epoch}")
     model.load_state_dict(torch.load(f"../outs/{out_name}/best_model.pt"))
-    plotting(train_loader, f"../outs/{out_name}/best_pred_true.png", f"../outs/{out_name}/best_hist.png")
+    plotting(train_loader, f"../outs/{out_name}/train_best_pred_true.png", f"../outs/{out_name}/train_best_hist.png")
+    plotting(val_loader, f"../outs/{out_name}/val_best_pred_true.png", f"../outs/{out_name}/val_best_hist.png")
 else:
     print("best model is last model")
     with open(f"../outs/{out_name}/log.txt", "a") as f:

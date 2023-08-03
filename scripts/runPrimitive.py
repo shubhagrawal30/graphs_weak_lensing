@@ -19,12 +19,12 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 from PrimitiveNN import primitiveNN, set_up_model, train, test, predict
-out_name = "20230720_past"
+out_name = "20230802_past"
 
 num_epochs = 100
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
-overwrite_epochs = False
-overwrite_logs = False
+overwrite_epochs = True
+overwrite_logs = True
 
 if overwrite_logs:
     if os.path.exists(f"../outs/{out_name}/log.txt"):
@@ -83,8 +83,8 @@ for epoch in range(num_epochs):
         train_loss = train(train_loader, *args)
         val_loss = test(val_loader, *args)
 
-        print(f'Epoch: {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
-        f.write(f'Epoch: {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}\n')
+        print(f'Epoch: {epoch:03d}, Train Loss: {train_loss}, Val Loss: {val_loss}')
+        f.write(f'Epoch: {epoch:03d}, Train Loss: {train_loss}, Val Loss: {val_loss}\n')
         print(f"Time: {time.time() - start:.4f}s")
         f.write(f"Time: {time.time() - start:.4f}s\n")
 
@@ -183,11 +183,13 @@ def plotting_for_mse_loss(loader, pred_true_filename, hist_filenames):
 
 plotting = plotting_for_mse_loss
 plotting(train_loader, f"../outs/{out_name}/pred_true.png", f"../outs/{out_name}/hist.png")
+plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
 
 if best_epoch != num_epochs - 1:
     print(f"Loading best model from epoch {best_epoch}")
     model.load_state_dict(torch.load(f"../outs/{out_name}/best_model.pt"))
     plotting(train_loader, f"../outs/{out_name}/best_pred_true.png", f"../outs/{out_name}/best_hist.png")
+    plotting(val_loader, f"../outs/{out_name}/val_best_pred_true.png", f"../outs/{out_name}/val_best_hist.png")
 else:
     print("best model is last model")
     with open(f"../outs/{out_name}/log.txt", "a") as f:
