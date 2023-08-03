@@ -25,8 +25,8 @@ out_name = "20230802_GATv2"
 
 num_epochs = 20
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
-overwrite_epochs = True
-overwrite_logs = True
+overwrite_epochs = False
+overwrite_logs = False
 
 if overwrite_logs:
     if os.path.exists(f"../outs/{out_name}/log.txt"):
