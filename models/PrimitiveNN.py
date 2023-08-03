@@ -132,7 +132,7 @@ def predict_for_mse_loss(loader, model, optimizer, criterion, scaler, indices, d
     return pred, true.reshape(-1, 6)[:, indices]
 
 def predict(loader, model, optimizer, criterion, scaler, indices, device):
-    if pred_type == "mse":
+    if pred_type == "mse" or pred_type == "L1Loss":
         return predict_for_mse_loss(loader, model, optimizer, criterion, scaler, indices, device)
     elif pred_type == "nll":
         return predict_for_mc_dropout(loader, model, optimizer, criterion, scaler, indices, device)
