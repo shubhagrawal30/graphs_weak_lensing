@@ -32,7 +32,7 @@ class baseGNN(torch.nn.Module):
 
     def forward(self, data):
         x, edge_index, edge_attr = data.x, data.edge_index.to(torch.int64), data.edge_attr
-        x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
+        # x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
         for conv in self.convs:
             x = conv(x, edge_index, edge_attr)
             x = F.leaky_relu(x, negative_slope=self.negative_slope)

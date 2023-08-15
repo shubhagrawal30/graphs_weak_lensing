@@ -29,7 +29,8 @@ class primitiveNN(torch.nn.Module):
         self.input_norm = BatchNorm1d(self.input_features)
 
     def forward(self, data):
-        x = self.input_norm(data)
+        # x = self.input_norm(data)
+        x = data
         for layer in self.layers[:-1]:
             x = layer(x)
             x = F.leaky_relu(x, negative_slope=self.negative_slope)

@@ -18,7 +18,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 from GATv2 import GATv2, set_up_model, train, test, predict
-out_name = "20230802_GATv2"
+out_name = "20230806_GATv2"
 
 # from GINE import GINE, set_up_model, train, test, predict
 # out_name = "20230720_GINE"

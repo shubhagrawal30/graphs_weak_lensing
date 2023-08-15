@@ -19,7 +19,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 from PrimitiveNN import primitiveNN, set_up_model, train, test, predict
-out_name = "20230802_past"
+out_name = "20230806_past"
 
 num_epochs = 100
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
@@ -40,7 +40,7 @@ indices = orig_labels.index("Om"), orig_labels.index("s8")
 num_classes = len(indices)
 
 dataset = Histograms()
-batch_size = 96
+batch_size = 32
 train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
 # train_dataset, val_dataset, test_dataset = dataset[:batch_size*], \
