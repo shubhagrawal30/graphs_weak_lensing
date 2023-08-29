@@ -23,7 +23,7 @@ out_name = "20230806_GATv2"
 # from GINE import GINE, set_up_model, train, test, predict
 # out_name = "20230720_GINE"
 
-num_epochs = 20
+num_epochs = 10
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 overwrite_epochs = False
 overwrite_logs = False
@@ -187,7 +187,7 @@ plotting = plotting_for_mse_loss
 plotting(train_loader, f"../outs/{out_name}/train_pred_true.png", f"../outs/{out_name}/train_hist.png")
 plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
 
-if best_epoch != num_epochs - 1:
+if True or best_epoch != num_epochs - 1:
     print(f"Loading best model from epoch {best_epoch}")
     model.load_state_dict(torch.load(f"../outs/{out_name}/best_model.pt"))
     plotting(train_loader, f"../outs/{out_name}/train_best_pred_true.png", f"../outs/{out_name}/train_best_hist.png")

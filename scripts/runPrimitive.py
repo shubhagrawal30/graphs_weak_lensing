@@ -185,7 +185,7 @@ plotting = plotting_for_mse_loss
 plotting(train_loader, f"../outs/{out_name}/pred_true.png", f"../outs/{out_name}/hist.png")
 plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
 
-if best_epoch != num_epochs - 1:
+if True or best_epoch != num_epochs - 1:
     print(f"Loading best model from epoch {best_epoch}")
     model.load_state_dict(torch.load(f"../outs/{out_name}/best_model.pt"))
     plotting(train_loader, f"../outs/{out_name}/best_pred_true.png", f"../outs/{out_name}/best_hist.png")
