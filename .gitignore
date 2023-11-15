@@ -5,3 +5,8 @@ outs/**
 **/.ipynb_checkpoints/
 
 **/sbi-logs/
+
+**/out
+**/err
+**/slurm-*
+**/temp*

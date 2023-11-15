@@ -11,8 +11,8 @@ if os.uname()[1].endswith("marmalade.physics.upenn.edu") or os.uname()[1][:4] ==
 elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
     print("I'm on perlmutter!")
     SYSTEM_NAME = "perlmutter"
-    PEAKS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/peaks/'
-    GRAPHS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs_weak_lensing/data/{dataset_name}/graphs/'
+    PEAKS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs/graphs_weak_lensing/data/{dataset_name}/peaks/'
+    GRAPHS_PATH = lambda dataset_name: f'/global/cfs/cdirs/des/shubh/graphs/graphs_weak_lensing/data/{dataset_name}/graphs/'
 else:
     sys.exit("I don't know what computer I'm on!")
 
