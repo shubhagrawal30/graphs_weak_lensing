@@ -2,7 +2,8 @@ import sys, pathlib, time, os
 sys.path.append("../models/")
 
 print("importing Patches")
-from peaks_pygdata import Patches
+# from peaks_pygdata import Patches
+from peaks_dirac import DiracPatches
 
 print("importing dependencies")
 from sklearn.preprocessing import MinMaxScaler
@@ -18,7 +19,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 from GATv2 import GATv2, set_up_model, train, test, predict
-out_name = "20230806_GATv2"
+out_name = "20231115_GATv2"
 
 # from GINE import GINE, set_up_model, train, test, predict
 # out_name = "20230720_GINE"
@@ -36,13 +37,16 @@ else:
         f.write("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
 
 print("loading dataset")
-dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
-dataset = Patches(dataset_name)
-orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
-indices = orig_labels.index("Om"), orig_labels.index("s8")
+# dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
+dataset_name = "20231115dirac_tomobin0_scale21.0"
+dataset = DiracPatches(dataset_name)
+# orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
+orig_labels = ['om', 'h', 's8', 'w', 'ob', 'ns']
+indices = orig_labels.index("om"), orig_labels.index("s8")
 num_classes = len(indices)
 
-batch_size = 32 #96
+batch_size = 128
+# note that this slicing does not bring the dataset into memory
 train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
 # train_dataset, val_dataset, test_dataset = dataset[:batch_size*20], \
