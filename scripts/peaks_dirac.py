@@ -18,7 +18,9 @@ except:
 
 if os.uname()[1].endswith("marmalade.physics.upenn.edu") or os.uname()[1][:4] == "node":
     print("I'm on marmalade!")
-    sys.exit("I don't know what to do on marmalade!")
+    SYSTEM_NAME = "marmalade"
+    PEAKS_PATH = None # you should be generating the dataset on perlmutter
+    GRAPHS_PATH = lambda dataset_name: f'/home2/shubh/graphs_weak_lensing/data/{dataset_name}/graphs'
 elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
     print("I'm on perlmutter!")
     SYSTEM_NAME = "perlmutter"
