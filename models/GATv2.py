@@ -28,10 +28,11 @@ class GATv2(baseGNN):
             self.convs.append(GATv2Conv(hidden_channels * heads, hidden_channels, \
                             edge_dim=edge_features, heads=heads, dropout=dropout))
 
+# look at this function for setting hyperparameters, runGNN uses this -->
 def set_up_model(dataset, num_classes, device, loss_type="L1Loss"):
     num_classes, criterion = base_set_up_model(dataset, num_classes, device, loss_type)
     model = GATv2(dataset.num_features, dataset.num_edge_features, num_classes, \
-                        hidden_channels=16, dropout=0.1, negative_slope=0.2, \
-                        num_layers=6, heads=8).to(device)
+                        hidden_channels=8, dropout=0.1, negative_slope=0.2, \
+                        num_layers=4, heads=8).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     return model, optimizer, criterion
