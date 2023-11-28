@@ -79,10 +79,15 @@ class DiracHistograms(Dataset):
             self.histograms[i] = hists
             self.labels[i] = labels
     
-    def __init__(self, dataset_name, scales, tomobins, field_name='k_sm_kE', overwrite=False, labels=None, histograms=None):
+    def __init__(self, dataset_name, scales=None, tomobins=None, field_name='k_sm_kE', overwrite=False, labels=None, histograms=None):
         self.dataset_name = dataset_name
         self.field_name = field_name
         os.makedirs(HISTS_PATH(self.dataset_name), exist_ok=True)
+        
+        if scales is None:
+            assert os.path.exists(self.scale)
+        if tomobins is None:
+            assert os.path.exists(self.tomobin)
         
         if overwrite:
             for filename in [self.labels_file, self.hist_file]:

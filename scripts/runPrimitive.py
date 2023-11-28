@@ -19,9 +19,9 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 from PrimitiveNN import primitiveNN, set_up_model, train, test, predict
-out_name = "20231121_NN"
+out_name = "20231128_NN"
 
-num_epochs = 100
+num_epochs = 50
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 overwrite_epochs = False
 overwrite_logs = False
@@ -36,7 +36,8 @@ else:
 print("loading dataset")
 # dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
 # orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
-dataset_name = "20231115dirac_tomobin0_scale21.0"
+# dataset_name = "20231115dirac_tomobin0_scale21.0"
+dataset_name = "20231128dirac"
 orig_labels = ['om', 'h', 's8', 'w', 'ob', 'ns']
 indices = orig_labels.index("om"), orig_labels.index("s8")
 num_classes = len(indices)

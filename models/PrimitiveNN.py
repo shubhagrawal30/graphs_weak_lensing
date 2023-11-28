@@ -22,13 +22,13 @@ class primitiveNN(torch.nn.Module):
         self.dropout = dropout
         self.negative_slope = negative_slope
         self.layers = torch.nn.ModuleList()
-        self.layers.append(Linear(input_features, 32))
+        self.layers.append(Linear(input_features, 128))
         # for i in range(num_dense_layers - 2):
         #     self.layers.append(Linear(dense_layer_size, dense_layer_size))
-        self.layers.append(Linear(32, 64))
-        self.layers.append(Linear(64, 128))
+        self.layers.append(Linear(128, 128))
         self.layers.append(Linear(128, 128))
         self.layers.append(Linear(128, 64))
+        self.layers.append(Linear(64, 64))
         self.layers.append(Linear(64, 32))
         self.layers.append(Linear(32, num_classes))
         self.input_norm = BatchNorm1d(self.input_features)

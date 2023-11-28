@@ -29,7 +29,7 @@ elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
 else:
     sys.exit("I don't know what computer I'm on!")
 
-NUM_BATCHES = 100
+NUM_BATCHES = 500
 LABELS = ['om', 'h', 's8', 'w', 'ob', 'ns']
 
 class DiracPatches(Dataset):
@@ -51,11 +51,15 @@ class DiracPatches(Dataset):
     
     @property
     def scale(self):
-        return self.dataset_name.split("_scale")[1].split("_")[0]
+        return os.path.join(GRAPHS_PATH(self.dataset_name), f"../scales.npy")
     
     @property
     def tomobin(self):
-        return int(self.dataset_name.split("_tomobin")[1].split("_")[0])
+        return os.path.join(GRAPHS_PATH(self.dataset_name), f"../tomobins.npy")
+    
+    def write_scales_and_tomobins(self, scales, tomobins):
+        np.save(self.scale, scales)
+        np.save(self.tomobin, tomobins)
 
     def len(self):
         if SYSTEM_NAME == "perlmutter":
@@ -64,7 +68,7 @@ class DiracPatches(Dataset):
             with open(os.path.join(self.processed_dir, "done"), "r") as f:
                 return int(f.read())  
 
-    def __init__(self, dataset_name, num_batches=NUM_BATCHES, field_name='k_sm_kE', radius=45, \
+    def __init__(self, dataset_name, scales, tomobins, num_batches=NUM_BATCHES, field_name='k_sm_kE', radius=45, \
                 overwrite=False, transform=None, pre_transform=None, pre_filter=None):
         # dataset name should have _tomobin***_scale*** in it
         self.dataset_name = dataset_name
@@ -89,35 +93,46 @@ class DiracPatches(Dataset):
 
         self.loaded_batch_ind = None
         self.loaded_batch = None
+        
+        self.write_scales_and_tomobins(scales, tomobins)
 
     def process_one_file(self, filename):
+        scales, tomobins = np.load(self.scale), np.load(self.tomobin)
         with open(os.path.join(self.raw_dir, filename), 'rb') as f:
             mmap, cosmo = pickle.load(f)
             nside = self.nside = mmap.conf['nside']
-            peaks_hpinds = np.array(mmap.peaks[self.field_name][self.tomobin][self.scale+"_loc"])
-            peaks_vals = np.array(mmap.peaks[self.field_name][self.tomobin][self.scale+"_val"])
+            all_peaks = mmap.peaks[self.field_name]
             del mmap
-        peaks_hpvec = np.vstack(hp.pix2vec(nside, peaks_hpinds))
-        peak_key = lambda hpind: np.where(peaks_hpinds == hpind)[0][0]
         
-        y = torch.tensor([cosmo[l] for l in LABELS], dtype=torch.float) # graph labels, shape: num_nodes, num_features
-        x = torch.tensor(peaks_vals.reshape(-1, 1), dtype=torch.float) # node featuresnp.sta
+        yall, xall = torch.empty((0, len(LABELS))), torch.empty((0, 1))
         edge_index = torch.empty((2, 0), dtype=torch.int) # edges, in COO format, shape (2, num_edges)
         edge_attr = torch.empty((0, 2), dtype=torch.float) # edge features: separation, angle, shape (num_edges, num_features)
         
-        # making edges
-        for key in range(len(peaks_hpinds)):
-            neigh_hpinds = hp.query_disc(nside, peaks_hpvec[:, key], self.radius, inclusive=True)
-            apeaks_hpinds = np.intersect1d(peaks_hpinds, neigh_hpinds)
-            apeaks_hpinds = apeaks_hpinds[apeaks_hpinds != peaks_hpinds[key]]
-            apeaks_key = np.array([peak_key(hpind) for hpind in apeaks_hpinds]) # not using np.vectorize as apeaks is expected to be small
-            
-            edge_index = torch.cat((edge_index, torch.tensor(np.stack((np.repeat(key, len(apeaks_key)), apeaks_key)), dtype=torch.int)), dim=1)
-            ra, dec = hp.pix2ang(nside, peaks_hpinds[key], lonlat=True)
-            ara, adec = hp.pix2ang(nside, apeaks_hpinds, lonlat=True)
-            seperations = np.sqrt((ara - ra)**2 + (adec - dec)**2) # flat sky approximation
-            angles = np.arctan2(ara - ra, adec - dec)
-            edge_attr = torch.cat((edge_attr, torch.tensor(np.stack((seperations, angles)).T, dtype=torch.float)))
+        for tb in tomobins:
+            for sc in scales:
+                peaks_hpinds = np.array(all_peaks[tb][sc+"_loc"])
+                peaks_vals = np.array(all_peaks[tb][sc+"_val"])  
+                peaks_hpvec = np.vstack(hp.pix2vec(nside, peaks_hpinds))
+                peak_key = lambda hpind: np.where(peaks_hpinds == hpind)[0][0]
+                
+                y = torch.tensor([cosmo[l] for l in LABELS], dtype=torch.float) # graph labels, shape: num_nodes, num_features
+                x = torch.tensor(peaks_vals.reshape(-1, 1), dtype=torch.float) # node featuresnp.sta
+                yall = torch.cat((yall, y))
+                xall = torch.cat((xall, x))
+        
+            # making edges
+            for key in range(len(peaks_hpinds)):
+                neigh_hpinds = hp.query_disc(nside, peaks_hpvec[:, key], self.radius, inclusive=True)
+                apeaks_hpinds = np.intersect1d(peaks_hpinds, neigh_hpinds)
+                apeaks_hpinds = apeaks_hpinds[apeaks_hpinds != peaks_hpinds[key]]
+                apeaks_key = np.array([peak_key(hpind) for hpind in apeaks_hpinds]) # not using np.vectorize as apeaks is expected to be small
+                
+                edge_index = torch.cat((edge_index, torch.tensor(np.stack((np.repeat(key, len(apeaks_key)), apeaks_key)), dtype=torch.int)), dim=1)
+                ra, dec = hp.pix2ang(nside, peaks_hpinds[key], lonlat=True)
+                ara, adec = hp.pix2ang(nside, apeaks_hpinds, lonlat=True)
+                seperations = np.sqrt((ara - ra)**2 + (adec - dec)**2) # flat sky approximation
+                angles = np.arctan2(ara - ra, adec - dec)
+                edge_attr = torch.cat((edge_attr, torch.tensor(np.stack((seperations, angles)).T, dtype=torch.float)))
         
         datapoint = Data(x=x, y=y, edge_index=edge_index, edge_attr=edge_attr)
         return datapoint
