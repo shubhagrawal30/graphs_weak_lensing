@@ -18,13 +18,16 @@ from torch_geometric.loader import DataLoader
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
-from GATv2 import GATv2, set_up_model, train, test, predict
-out_name = "20231115_GATv2"
+# from GATv2 import GATv2, set_up_model, train, test, predict
+# out_name = "20231117_GATv2"
 
 # from GINE import GINE, set_up_model, train, test, predict
-# out_name = "20230720_GINE"
+# out_name = "20231123_GINE"
 
-num_epochs = 10
+from VanillaGCN import VanillaGCN, set_up_model, train, test, predict
+out_name = "20231123_GCN"
+
+num_epochs = 25
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 overwrite_epochs = False
 overwrite_logs = False
@@ -47,10 +50,10 @@ num_classes = len(indices)
 
 batch_size = 128
 # note that this slicing does not bring the dataset into memory
-train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
-    dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
-# train_dataset, val_dataset, test_dataset = dataset[:batch_size*20], \
-#     dataset[batch_size*20:batch_size*22], dataset[batch_size*22:batch_size*24]
+# train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
+#     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
+train_dataset, val_dataset, test_dataset = dataset[:batch_size*10], \
+    dataset[batch_size*10:batch_size*11], dataset[batch_size*11:batch_size*12] # debugging
 
 print(batch_size, len(train_dataset) / batch_size, \
       len(train_dataset), len(val_dataset), len(test_dataset), len(dataset))
@@ -188,8 +191,8 @@ def plotting_for_mse_loss(loader, pred_true_filename, hist_filenames):
 
 
 plotting = plotting_for_mse_loss
-plotting(train_loader, f"../outs/{out_name}/train_pred_true.png", f"../outs/{out_name}/train_hist.png")
-plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
+# plotting(train_loader, f"../outs/{out_name}/train_pred_true.png", f"../outs/{out_name}/train_hist.png")
+# plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
 
 if True or best_epoch != num_epochs - 1:
     print(f"Loading best model from epoch {best_epoch}")

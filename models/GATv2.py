@@ -32,7 +32,7 @@ class GATv2(baseGNN):
 def set_up_model(dataset, num_classes, device, loss_type="L1Loss"):
     num_classes, criterion = base_set_up_model(dataset, num_classes, device, loss_type)
     model = GATv2(dataset.num_features, dataset.num_edge_features, num_classes, \
-                        hidden_channels=8, dropout=0.1, negative_slope=0.2, \
-                        num_layers=4, heads=8).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+                        hidden_channels=16, dropout=0, negative_slope=0.2, \
+                        num_layers=2, heads=4).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     return model, optimizer, criterion

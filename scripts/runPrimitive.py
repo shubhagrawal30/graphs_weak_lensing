@@ -2,8 +2,8 @@ import sys, pathlib, time, os
 sys.path.append("../models/")
 
 print("importing data modules")
-from peaks_pygdata import Patches
-from peaks_primitive import Histograms
+# from peaks_primitive import Histograms
+from hist_dirac import DiracHistograms
 
 print("importing dependencies")
 from sklearn.preprocessing import MinMaxScaler
@@ -19,7 +19,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 from PrimitiveNN import primitiveNN, set_up_model, train, test, predict
-out_name = "20230806_past"
+out_name = "20231121_NN"
 
 num_epochs = 100
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
@@ -35,12 +35,14 @@ else:
 
 print("loading dataset")
 # dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
-orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
-indices = orig_labels.index("Om"), orig_labels.index("s8")
+# orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
+dataset_name = "20231115dirac_tomobin0_scale21.0"
+orig_labels = ['om', 'h', 's8', 'w', 'ob', 'ns']
+indices = orig_labels.index("om"), orig_labels.index("s8")
 num_classes = len(indices)
 
-dataset = Histograms()
-batch_size = 32
+dataset = DiracHistograms(dataset_name)
+batch_size = 128
 train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
 # train_dataset, val_dataset, test_dataset = dataset[:batch_size*], \
@@ -182,8 +184,8 @@ def plotting_for_mse_loss(loader, pred_true_filename, hist_filenames):
 
 
 plotting = plotting_for_mse_loss
-plotting(train_loader, f"../outs/{out_name}/pred_true.png", f"../outs/{out_name}/hist.png")
-plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
+# plotting(train_loader, f"../outs/{out_name}/pred_true.png", f"../outs/{out_name}/hist.png")
+# plotting(val_loader, f"../outs/{out_name}/val_pred_true.png", f"../outs/{out_name}/val_hist.png")
 
 if True or best_epoch != num_epochs - 1:
     print(f"Loading best model from epoch {best_epoch}")

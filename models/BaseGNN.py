@@ -27,18 +27,31 @@ class baseGNN(torch.nn.Module):
         
         self.convs = torch.nn.ModuleList()
         
-        self.readout = aggr.SoftmaxAggregation(learn=True)
-        self.linear = Linear(lin_in, num_classes)
+        self.readout = aggr.SumAggregation()
+        # self.readout = aggr.SoftmaxAggregation(learn=True)
+        self.linears = torch.nn.ModuleList([Linear(lin_in, lin_in)])
+        self.linear_fin = Linear(lin_in, num_classes)
 
     def forward(self, data):
-        x, edge_index, edge_attr = data.x, data.edge_index.to(torch.int64), data.edge_attr
-        # x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
-        for conv in self.convs:
+        x, edge_index, edge_attr = data.x, data.edge_index.to(torch.int64), data.edge_attr[:, 0:1]
+        x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
+        resx = {}
+        for ind, conv in enumerate(self.convs):
             x = conv(x, edge_index, edge_attr)
-            x = F.leaky_relu(x, negative_slope=self.negative_slope)
             x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.readout(x, data.batch)
-        x = self.linear(x)
+            resx[ind] = torch.clone(x)
+            # x = F.leaky_relu(x, negative_slope=self.negative_slope)
+            # x = F.dropout(x, p=self.dropout, training=self.training)
+            resx[ind] = self.readout(resx[ind], data.batch)
+        # x = self.readout(x, data.batch)
+        # for linear in self.linears:
+        #     x = F.leaky_relu(linear(x), negative_slope=self.negative_slope)
+        #     x = F.dropout(x, p=self.dropout, training=self.training)
+        h = torch.cat([resx[i] for i in range(len(self.convs))], dim=1)
+        for linear in self.linears:
+            h = F.leaky_relu(linear(h), negative_slope=self.negative_slope)
+            h = F.dropout(h, p=self.dropout, training=self.training)
+        x = self.linear_fin(h)
         return x
 
 # training, prediction, and evaluation code

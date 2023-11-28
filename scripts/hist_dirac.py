@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 import os, tqdm, shutil, sys, pathlib, pickle
 import numpy as np
 from collections.abc import Iterable
+import multiprocessing as mp
 
 if os.uname()[1].endswith("marmalade.physics.upenn.edu") or os.uname()[1][:4] == "node":
     print("I'm on marmalade!")
@@ -16,6 +17,7 @@ elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
 else:
     sys.exit("I don't know what computer I'm on!")
 
+NTHREADS = 128
 LABELS = ['om', 'h', 's8', 'w', 'ob', 'ns']
 
 class DiracHistograms(Dataset):
@@ -33,11 +35,30 @@ class DiracHistograms(Dataset):
     
     @property
     def scale(self):
-        return self.dataset_name.split("_scale")[1].split("_")[0]
+        return os.path.join(HISTS_PATH(self.dataset_name), f"../scales.npy")
     
     @property
     def tomobin(self):
-        return int(self.dataset_name.split("_tomobin")[1].split("_")[0])
+        return os.path.join(HISTS_PATH(self.dataset_name), f"../tomobins.npy")
+    
+    def write_scales_and_tomobins(self, scales, tomobins):
+        np.save(self.scale, scales)
+        np.save(self.tomobin, tomobins)
+    
+    def process_one_file(self, args):
+        ind, filename = args
+        print(f"processing {ind}:{filename}", flush=True)
+        
+        hists = np.array([])
+        scales = np.load(self.scale)
+        tomobins = np.load(self.tomobin)
+        with open(os.path.join(self.raw_dir, filename), "rb") as f:
+            mmap, cosmo = pickle.load(f)
+            for tb in tomobins:
+                for sc in scales:
+                    hists = np.append(hists, mmap.peaks[self.field_name][tb][sc])
+        print(f"done {ind}:{filename}", flush=True)
+        return hists, np.array([cosmo[label] for label in LABELS])
     
     def process(self):
         filenames = os.listdir(self.raw_dir)
@@ -45,16 +66,20 @@ class DiracHistograms(Dataset):
             filenames.remove("done")
         self.labels = np.empty((len(filenames), len(LABELS)))
         
-        for i, filename in tqdm.tqdm(enumerate(filenames), total=len(filenames)):
-            with open(os.path.join(self.raw_dir, filename), "rb") as f:
-                mmap, cosmo = pickle.load(f)
-                hists = np.array(mmap.peaks[self.field_name][self.tomobin][self.scale])
-            self.labels[i] = np.array([cosmo[label] for label in LABELS])
-            if self.histograms is None:
-                self.histograms = np.empty((len(filenames), len(hists)))
+        hists, _ = self.process_one_file([0, filenames[0]])
+        self.histograms = np.empty((len(filenames), len(hists)))
+        self.num_features = len(hists)
+        
+        pool = mp.Pool(NTHREADS)
+        results = pool.map(self.process_one_file, enumerate(filenames))
+        pool.close()
+        pool.join()
+        
+        for i, (hists, labels) in enumerate(results):
             self.histograms[i] = hists
+            self.labels[i] = labels
     
-    def __init__(self, dataset_name, field_name='k_sm_kE', overwrite=False, labels=None, histograms=None):
+    def __init__(self, dataset_name, scales, tomobins, field_name='k_sm_kE', overwrite=False, labels=None, histograms=None):
         self.dataset_name = dataset_name
         self.field_name = field_name
         os.makedirs(HISTS_PATH(self.dataset_name), exist_ok=True)
@@ -82,8 +107,10 @@ class DiracHistograms(Dataset):
         if os.path.exists(self.hist_file):
             print("loading histograms")
             self.histograms = np.load(self.hist_file)
+            self.num_features = len(self.histograms[0])
 
         if self.labels is None or self.histograms is None:
+            self.write_scales_and_tomobins(scales, tomobins)
             self.process()
             np.save(self.labels_file, self.labels)
             np.save(self.hist_file, self.histograms)
@@ -99,5 +126,5 @@ class DiracHistograms(Dataset):
         if type(idx) is slice:
             idx = np.arange(*idx.indices(len(self)))
         if isinstance(idx, Iterable):
-            return DiracHistograms(labels=self.labels[idx], histograms=self.histograms[idx])
+            return DiracHistograms(self.dataset_name, labels=self.labels[idx], histograms=self.histograms[idx])
     
