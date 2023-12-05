@@ -3,8 +3,9 @@
 #SBATCH -C cpu 
 #SBATCH -q regular 
 #SBATCH -t 10:00:00 
-#SBATCH --nodes=4
-#SBATCH --cpus-per-task=128
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=32
 #SBATCH --job-name=run_peaks_dirac
 #SBATCH --mem=0
 #SBATCH --mail-type=ALL
