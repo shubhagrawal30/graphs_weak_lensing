@@ -33,7 +33,7 @@ class baseGNN(torch.nn.Module):
         self.linear_fin = Linear(lin_in, num_classes)
 
     def forward(self, data):
-        x, edge_index, edge_attr = data.x, data.edge_index.to(torch.int64), data.edge_attr[:, 0:1]
+        x, edge_index, edge_attr = data.x, data.edge_index.to(torch.int64), data.edge_attr
         x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
         resx = {}
         for ind, conv in enumerate(self.convs):
@@ -62,19 +62,37 @@ def neg_log_likelihood(preds, y):
     error = y - means
     return torch.mean(0.5 * torch.exp(-log_vars) * error * error + 0.5 * log_vars)
 
+def move_to_device(data, device):
+    try:
+        return data.to(device)
+    except:
+        return [move_to_device(d, device) for d in data]
+
+def get_y(data):
+    try:
+        return data.y
+    except:
+        return get_y(data[0])
+    
+def get_num_graphs(data):
+    try:
+        return data.num_graphs
+    except:
+        return get_num_graphs(data[0])
+
 def train(loader, model, optimizer, criterion, scaler, indices, device):
     model.train()
     loss_all = 0.0
     for data in tqdm.tqdm(loader):
-        data = data.to(device)
+        data = move_to_device(data, device)
         optimizer.zero_grad()
         out = model(data).cpu()
-        true = data.y.reshape(-1, 6)[:, indices].cpu()
+        true = get_y(data).reshape(-1, 6)[:, indices].cpu()
         torch.cuda.empty_cache()
         true = torch.tensor(scaler.transform(true), dtype=torch.float)
         loss = criterion(out, true)
         loss.backward()
-        loss_all += data.num_graphs * loss.item()
+        loss_all += get_num_graphs(data) * loss.item()
         optimizer.step()
         del data, out, true, loss
         gc.collect()
@@ -86,12 +104,12 @@ def test(loader, model, optimizer, criterion, scaler, indices, device):
     with torch.no_grad():
         error = 0
         for data in tqdm.tqdm(loader):
-            data = data.to(device)
+            data = move_to_device(data, device)
             pred = model(data).cpu()
-            true = data.y.reshape(-1, 6)[:, indices].cpu()
+            true = get_y(data).reshape(-1, 6)[:, indices].cpu()
             true = torch.tensor(scaler.transform(true), dtype=torch.float)
             loss = criterion(pred, true)
-            error += data.num_graphs * loss.item()
+            error += get_num_graphs(data) * loss.item()
             del data, pred, true, loss
             gc.collect()
             torch.cuda.empty_cache()
@@ -105,12 +123,12 @@ def predict_for_mc_dropout(loader, model, optimizer, criterion, scaler, indices,
     for i in range(n_pred):
         index = 0
         for data in tqdm.tqdm(loader):
-            data = data.to(device)
+            data = move_to_device(data, device)
             pred = model(data).cpu().detach().numpy()
             if i == 0:
-                true = np.append(true, data.y.cpu())
-            preds[i, index:index+data.num_graphs] = pred
-            index += data.num_graphs
+                true = np.append(true, get_y(data).cpu())
+            preds[i, index:index+get_num_graphs(data)] = pred
+            index += get_num_graphs(data)
             del data, pred
             gc.collect()
             torch.cuda.empty_cache()
@@ -122,9 +140,9 @@ def predict_for_mse_loss(loader, model, optimizer, criterion, scaler, indices, d
     true, pred = np.array([]), np.empty((0, len(indices)))
     with torch.no_grad():
         for data in tqdm.tqdm(loader):
-            data = data.to(device)
+            data = move_to_device(data, device)
             pred = np.append(pred, scaler.inverse_transform(model(data).cpu().numpy()), axis=0)
-            true = np.append(true, data.y.cpu())
+            true = np.append(true, get_y(data).cpu())
             del data
             gc.collect()
             torch.cuda.empty_cache()

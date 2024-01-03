@@ -14,4 +14,5 @@ module load python
 conda activate gnn
 cd /global/cfs/cdirs/des/shubh/graphs/graphs_weak_lensing/scripts
 # srun --cpu-bind=none python -c "from hist_dirac import DiracHistograms; DiracHistograms('20231115dirac_tomobin0_scale21.0')"
-srun --cpu-bind=none python -c "from hist_dirac import DiracHistograms; DiracHistograms('20231128dirac', [8.2, 21.0, 86., 221.], [0, 1, 2, 3])"
+# srun --cpu-bind=none python -c "from hist_dirac import DiracHistograms; DiracHistograms('20231128dirac', [8.2, 21.0, 86., 221.], [0, 1, 2, 3])"
+srun --cpu-bind=none python -c "from hist_dirac import DiracHistograms; DiracHistograms('20231216dirac', [21.0, 86.], [0, 1, 2, 3])"

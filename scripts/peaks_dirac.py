@@ -13,7 +13,7 @@ if __name__ == '__main__' or True:
     print(f'nthreads_available = {len(os.sched_getaffinity(0))}')
     print(f'ncores_available = {len(os.sched_getaffinity(0)) // (psutil.cpu_count(logical=True) // psutil.cpu_count(logical=False))}')
 
-nthreads = 32
+nthreads = 4
 
 try:
     os.environ["MPICH_GPU_SUPPORT_ENABLED"] = "1"
@@ -23,6 +23,9 @@ try:
 except:
     MPI_ON = False
     pass
+
+MP_ON = True
+MPI_ON = True
 
 if os.uname()[1].endswith("marmalade.physics.upenn.edu") or os.uname()[1][:4] == "node":
     print("I'm on marmalade!")
@@ -40,40 +43,31 @@ else:
 NUM_BATCHES = 1500 # get slightly higher than 32, so we can use 32 batch size (~1-2 in memory) or 64 (~2 in memory)
 LABELS = ['om', 'h', 's8', 'w', 'ob', 'ns']
 
-@jit(nopython=True)
-def process_one_sc_tb_jit(sc, tb, all_peaks, all_neigh_hpinds, pix2ang, cosmo):
-    # start = time.time()
-    # print(filename, sc, tb, flush=True)
-    edge_index = torch.empty((2, 0), dtype=torch.int) # edges, in COO format, shape (2, num_edges)
-    edge_attr = torch.empty((0, 2), dtype=torch.float) # edge features: separation, angle, shape (num_edges, num_features)
-    
-    peaks_hpinds = np.array(all_peaks[tb][f"{sc:.1f}"+"_loc"])
-    peaks_vals = np.array(all_peaks[tb][f"{sc:.1f}"+"_val"])
-    
-    peak_key = lambda hpind: np.where(peaks_hpinds == hpind)[0][0]
-    
-    y = torch.tensor([cosmo[l] for l in LABELS], dtype=torch.float) # graph labels, shape: num_nodes, num_features
-    x = torch.tensor(peaks_vals.reshape(-1, 1), dtype=torch.float) # node features
+@jit(nopython=True, parallel=False, boundscheck=False, fastmath=True)
+def process_one_sc_tb_jit(sc, tb, peaks_hpinds, peaks_vals, all_neigh_hpinds, pix2ang):
+    edge_index = np.empty((2, 0), dtype=np.int64) # edges, in COO format, shape (2, num_edges)
+    edge_attr = np.empty((0, 2), dtype=np.float64) # edge features: separation, angle, shape (num_edges, num_features)
+    # peak_key = lambda hpind: np.where(peaks_hpinds == hpind)[0][0]
+    x = peaks_vals.reshape(-1, 1) # node features
 
     # making edges
     for key in range(len(peaks_hpinds)):
         neigh_hpinds = all_neigh_hpinds[peaks_hpinds[key]]
         apeaks_hpinds = np.intersect1d(peaks_hpinds, neigh_hpinds)
         apeaks_hpinds = apeaks_hpinds[apeaks_hpinds != peaks_hpinds[key]]
-        apeaks_key = [peak_key(hpind) for hpind in apeaks_hpinds] # not using np.vectorize as apeaks is expected to be small
-        
-        edge_index = torch.cat((edge_index, torch.tensor(np.stack((np.repeat(key, len(apeaks_key)), apeaks_key)), dtype=torch.int)), dim=1)
+        # peak_key_vec = np.vectorize(peak_key_jit)
+        apeaks_key = np.empty((0,), dtype=np.int64)
+        for hpind in apeaks_hpinds:
+            apeaks_key = np.append(apeaks_key, np.where(peaks_hpinds == hpind)[0][0])
+            
+        edge_index = np.concatenate((edge_index, np.stack((np.repeat(key, apeaks_key.size), apeaks_key))), axis=1)
         ra, dec = pix2ang[peaks_hpinds[key]]
         aradecs = pix2ang[apeaks_hpinds]
         ara, adec = aradecs[:, 0], aradecs[:, 1]
         seperations = np.sqrt((ara - ra)**2 + (adec - dec)**2) # flat sky approximation
         angles = np.arctan2(ara - ra, adec - dec)
-        edge_attr = torch.cat((edge_attr, torch.tensor(np.stack((seperations, angles)).T, dtype=torch.float)))
-
-    datapoint = Data(x=x, y=y, edge_index=edge_index, edge_attr=edge_attr)
-    gc.collect()
-    # print(f"Processed {filename} {sc} {tb} in {time.time() - start} seconds", flush=True)
-    return datapoint
+        edge_attr = np.concatenate((edge_attr, np.stack((seperations, angles)).T))
+    return x, edge_index, edge_attr
 
 class DiracPatches(Dataset):
     @property
@@ -104,6 +98,14 @@ class DiracPatches(Dataset):
     def healpy_preprocessed(self):
         return os.path.join(GRAPHS_PATH(self.dataset_name), f"../healpy_preprocessed.pkl")
     
+    @property
+    def num_node_features(self):
+        return 1
+    
+    @property
+    def num_edge_features(self):
+        return 2
+    
     def write_scales_and_tomobins(self, scales, tomobins):
         np.save(self.scale, scales)
         np.save(self.tomobin, tomobins)
@@ -124,10 +126,10 @@ class DiracPatches(Dataset):
         self.radius = radius / 60 / 180 * np.pi # input assumed in arcmins, converted to radians later
         self.nside = nside
         
+        pathlib.Path(self.processed_dir).mkdir(parents=True, exist_ok=True)
+        
         # we preprocess some healpy things to make stuff faster
         self.preprocess_healpy()
-        
-        pathlib.Path(self.processed_dir).mkdir(parents=True, exist_ok=True)
         
         if overwrite:
             shutil.rmtree(self.processed_dir)
@@ -171,6 +173,7 @@ class DiracPatches(Dataset):
         
 
     def process_one_file(self, filename):
+        start = time.time()
         print(filename, flush=True)
         datapoints = []
         scales, tomobins = np.load(self.scale), np.load(self.tomobin)
@@ -178,41 +181,16 @@ class DiracPatches(Dataset):
             mmap, cosmo = pickle.load(f)
             all_peaks = mmap.peaks[self.field_name]
             del mmap
+            
+        y = torch.tensor([cosmo[l] for l in LABELS], dtype=torch.float) # graph labels, shape: num_nodes, num_features
         
         for tb in tomobins:
             for sc in scales:
-                start = time.time()
-                # print(filename, sc, tb, flush=True)
-                edge_index = torch.empty((2, 0), dtype=torch.int) # edges, in COO format, shape (2, num_edges)
-                edge_attr = torch.empty((0, 2), dtype=torch.float) # edge features: separation, angle, shape (num_edges, num_features)
-                
-                peaks_hpinds = np.array(all_peaks[tb][f"{sc:.1f}"+"_loc"])
-                peaks_vals = np.array(all_peaks[tb][f"{sc:.1f}"+"_val"])
-                
-                peak_key = lambda hpind: np.where(peaks_hpinds == hpind)[0][0]
-                
-                y = torch.tensor([cosmo[l] for l in LABELS], dtype=torch.float) # graph labels, shape: num_nodes, num_features
-                x = torch.tensor(peaks_vals.reshape(-1, 1), dtype=torch.float) # node features
-        
-                # making edges
-                for key in range(len(peaks_hpinds)):
-                    neigh_hpinds = self.all_neigh_hpinds[peaks_hpinds[key]]
-                    apeaks_hpinds = np.intersect1d(peaks_hpinds, neigh_hpinds)
-                    apeaks_hpinds = apeaks_hpinds[apeaks_hpinds != peaks_hpinds[key]]
-                    apeaks_key = [peak_key(hpind) for hpind in apeaks_hpinds] # not using np.vectorize as apeaks is expected to be small
-                    
-                    edge_index = torch.cat((edge_index, torch.tensor(np.stack((np.repeat(key, len(apeaks_key)), apeaks_key)), dtype=torch.int)), dim=1)
-                    ra, dec = self.pix2ang[peaks_hpinds[key]]
-                    aradecs = self.pix2ang[apeaks_hpinds]
-                    ara, adec = aradecs[:, 0], aradecs[:, 1]
-                    seperations = np.sqrt((ara - ra)**2 + (adec - dec)**2) # flat sky approximation
-                    angles = np.arctan2(ara - ra, adec - dec)
-                    edge_attr = torch.cat((edge_attr, torch.tensor(np.stack((seperations, angles)).T, dtype=torch.float)))
-        
-                datapoint = Data(x=x, y=y, edge_index=edge_index, edge_attr=edge_attr)
-                datapoints.append(datapoint)
-                gc.collect()
-                # print(f"Processed {filename} {sc} {tb} in {time.time() - start} seconds", flush=True)
+                print(f"Processing {sc} {tb}", flush=True)
+                x, edge_index, edge_attr = process_one_sc_tb_jit(sc, tb, np.array(all_peaks[tb][f"{sc:.1f}"+"_loc"]), \
+                    np.array(all_peaks[tb][f"{sc:.1f}"+"_val"], dtype=np.float64), self.all_neigh_hpinds, self.pix2ang)
+                datapoints.append(Data(x=torch.tensor(x, dtype=torch.float), edge_index=torch.tensor(edge_index, dtype=torch.long), \
+                        edge_attr=torch.tensor(edge_attr, dtype=torch.float), y=y))
         print(f"Processed {filename} in {time.time() - start} seconds", flush=True)
         return datapoints
         
@@ -220,7 +198,7 @@ class DiracPatches(Dataset):
     def process_one_batch(self, batch_ind):
         # randomize which batch we choose:
         start = time.time()
-        batch_ind = (batch_ind + np.random.randint(self.num_batches)) % self.num_batches
+        batch_ind = (batch_ind + np.random.randint(self.num_batches)) % self.num_batches         
         if os.path.exists(self.processed_paths[batch_ind]):
             print(f"Batch {batch_ind} already processed", flush=True)
             return
@@ -230,10 +208,14 @@ class DiracPatches(Dataset):
         
         gc.collect()
         
-        pool = mp.Pool(nthreads)
-        data_list = pool.map(self.process_one_file, filenames)
-        pool.close()
-        pool.join()
+        if MP_ON:
+            pool = mp.Pool(nthreads)
+            data_list = pool.map(self.process_one_file, filenames)
+            pool.close()
+            pool.join()
+        else:
+            for filename in filenames:
+                data_list += self.process_one_file(filename)
         
         gc.collect()
         
@@ -249,7 +231,7 @@ class DiracPatches(Dataset):
         return
 
     def process(self):
-        if MPI_ON and False:
+        if MPI_ON:
             run_count = 0
             comm = MPI.COMM_WORLD
             print(comm)

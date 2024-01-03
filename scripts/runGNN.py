@@ -22,12 +22,15 @@ print(device)
 # out_name = "20231117_GATv2"
 
 # from GINE import GINE, set_up_model, train, test, predict
-# out_name = "20231123_GINE"
+# out_name = "20231231_GINE_test"
 
-from VanillaGCN import VanillaGCN, set_up_model, train, test, predict
-out_name = "20231123_GCN"
+from HetGINE import HetGINE, set_up_model, train, test, predict
+out_name = "20231231_HetGINE"
 
-num_epochs = 25
+# from VanillaGCN import VanillaGCN, set_up_model, train, test, predict
+# out_name = "20231123_GCN"
+
+num_epochs = 10
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 overwrite_epochs = False
 overwrite_logs = False
@@ -38,22 +41,23 @@ if overwrite_logs:
 else:
     with open(f"../outs/{out_name}/log.txt", "a") as f:
         f.write("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
+        print("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
 
 print("loading dataset")
 # dataset_name = "20231107_patches_flatsky_fwhm3_radius8_noiseless"
-dataset_name = "20231115dirac_tomobin0_scale21.0"
-dataset = DiracPatches(dataset_name)
+dataset_name = "20231216dirac"
+dataset = DiracPatches(dataset_name, [21.0, 86.], [0, 1, 2, 3])
 # orig_labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
 orig_labels = ['om', 'h', 's8', 'w', 'ob', 'ns']
 indices = orig_labels.index("om"), orig_labels.index("s8")
 num_classes = len(indices)
 
-batch_size = 128
+batch_size = 64
 # note that this slicing does not bring the dataset into memory
-# train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
-#     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
-train_dataset, val_dataset, test_dataset = dataset[:batch_size*10], \
-    dataset[batch_size*10:batch_size*11], dataset[batch_size*11:batch_size*12] # debugging
+train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
+    dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
+# train_dataset, val_dataset, test_dataset = dataset[:batch_size*10], \
+#     dataset[batch_size*10:batch_size*11], dataset[batch_size*11:batch_size*12] # debugging
 
 print(batch_size, len(train_dataset) / batch_size, \
       len(train_dataset), len(val_dataset), len(test_dataset), len(dataset))
@@ -69,11 +73,18 @@ except:
     scaler = MinMaxScaler()
     true = np.array([])
     for i, data in tqdm.tqdm(enumerate(train_loader), total=len(train_loader)):
-        true = np.append(true, data.y)
+        for j, dpt in enumerate(data):
+            if j == 0:
+                true = np.append(true, dpt.y)
+                chk = dpt.y
+                chk_ng = dpt.num_graphs
+            else:
+                assert np.allclose(chk, dpt.y)
+                assert chk_ng == dpt.num_graphs
     scaler.fit(true.reshape(-1, 6)[:, indices])
     joblib.dump(scaler, f"../outs/{out_name}/scaler.pkl")
 
-model, optimizer, criterion = set_up_model(dataset, num_classes, device)
+model, optimizer, criterion = set_up_model(dataset, num_classes, device, len(train_dataset[0]))
 args = model, optimizer, criterion, scaler, indices, device
 
 # save all training and validation losses and the model with best validation loss
@@ -104,6 +115,7 @@ for epoch in range(num_epochs):
             best_epoch = epoch
             torch.save(model.state_dict(), f"../outs/{out_name}/best_model.pt")
             f.write(f"New best model saved at epoch {epoch}\n")
+            print(f"New best model saved at epoch {epoch}")
 
         del train_loss, val_loss
         gc.collect()
@@ -203,5 +215,8 @@ else:
     print("best model is last model")
     with open(f"../outs/{out_name}/log.txt", "a") as f:
         f.write("best model is last model\n")
+        print("best model is last model")
 
 print("done!")
+f.write("done!\n")
+f.close()
