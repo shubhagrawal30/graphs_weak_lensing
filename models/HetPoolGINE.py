@@ -36,6 +36,8 @@ class HetGINE(baseGNN):
             self.convs_list.append(torch.nn.ModuleList())
             self.convs_list[i].append(GINEConv(self.internal_nn(node_features, \
                             inhc), train_eps=True, edge_dim=edge_features))
+            # add a local pooling layer
+            
             for _ in range(num_layers - 1):
                 self.convs_list[i].append(GINEConv(self.internal_nn(inhc, \
                             inhc), train_eps=True, edge_dim=edge_features))
@@ -44,11 +46,11 @@ class HetGINE(baseGNN):
         all_h = []
         for di, dpt in enumerate(data):
             x, edge_index, edge_attr = dpt.x, dpt.edge_index.to(torch.int64), dpt.edge_attr
-            # x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
+            x, edge_attr = self.node_norm(x), self.edge_norm(edge_attr)
             resx = {}
             for ind, conv in enumerate(self.convs_list[di]):
                 x = conv(x, edge_index, edge_attr)
-                x = F.leaky_relu(x, negative_slope=self.negative_slope)
+                # x = F.leaky_relu(x, negative_slope=self.negative_slope)
                 x = F.dropout(x, p=self.dropout, training=self.training)
                 resx[ind] = torch.clone(x)
                 resx[ind] = self.readout(resx[ind], dpt.batch)
