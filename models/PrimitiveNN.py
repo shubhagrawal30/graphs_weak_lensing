@@ -58,7 +58,8 @@ def set_up_model(dataset, num_classes, device, loss_type="mse"):
         raise ValueError("loss_type must be either mse, L1Loss, or nll")
     pred_type = loss_type
 
-    model = primitiveNN(dataset.num_features, num_classes, num_dense_layers=4, \
+    model = primitiveNN(14 * 8 * 2, #control
+                        num_classes, num_dense_layers=4, \
                     dropout=0.1, negative_slope=0.2, dense_layer_size=128).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     return model, optimizer, criterion
@@ -69,14 +70,14 @@ def neg_log_likelihood(preds, y):
     error = y - means
     return torch.mean(0.5 * torch.exp(-log_vars) * error * error + 0.5 * log_vars)
 
-def train(loader, model, optimizer, criterion, scaler, indices, device):
+def train(loader, model, optimizer, criterion, scaler, indices, device, length):
     model.train()
     loss_all = 0.0
     for data, label in tqdm.tqdm(loader):
         data = data.to(device)
         optimizer.zero_grad()
         out = model(data).cpu()
-        true = label.reshape(-1, 6)[:, indices].cpu()
+        true = label[0].y.reshape(-1, 6)[:, indices].cpu()
         torch.cuda.empty_cache()
         true = torch.tensor(scaler.transform(true), dtype=torch.float)
         loss = criterion(out, true)
@@ -86,25 +87,25 @@ def train(loader, model, optimizer, criterion, scaler, indices, device):
         del data, out, true, loss
         gc.collect()
         torch.cuda.empty_cache()
-    return loss_all / len(loader.dataset)
+    return loss_all / length
 
-def test(loader, model, optimizer, criterion, scaler, indices, device):
+def test(loader, model, optimizer, criterion, scaler, indices, device, length):
     model.eval()
     with torch.no_grad():
         error = 0
         for data, label in tqdm.tqdm(loader):
             data = data.to(device)
             pred = model(data).cpu()
-            true = label.reshape(-1, 6)[:, indices].cpu()
+            true = label[0].y.reshape(-1, 6)[:, indices].cpu()
             true = torch.tensor(scaler.transform(true), dtype=torch.float)
             loss = criterion(pred, true)
             error += len(data) * loss.item()
             del data, pred, true, loss
             gc.collect()
             torch.cuda.empty_cache()
-    return error / len(loader.dataset)
+    return error / length
 
-def predict_for_mc_dropout(loader, model, optimizer, criterion, scaler, indices, device):
+def predict_for_mc_dropout(loader, model, optimizer, criterion, scaler, indices, device, length):
     model.train()
     n_pred = 10
     true = np.array([])
@@ -124,23 +125,23 @@ def predict_for_mc_dropout(loader, model, optimizer, criterion, scaler, indices,
     
     return preds, true.reshape(-1, 6)[:, indices]
 
-def predict_for_mse_loss(loader, model, optimizer, criterion, scaler, indices, device):
+def predict_for_mse_loss(loader, model, optimizer, criterion, scaler, indices, device, length):
     model.eval()
     true, pred = np.array([]), np.empty((0, len(indices)))
     with torch.no_grad():
         for data, label in tqdm.tqdm(loader):
             data = data.to(device)
             pred = np.append(pred, scaler.inverse_transform(model(data).cpu().numpy()), axis=0)
-            true = np.append(true, label.cpu())
+            true = np.append(true, label[0].y.cpu())
             del data
             gc.collect()
             torch.cuda.empty_cache()
     return pred, true.reshape(-1, 6)[:, indices]
 
-def predict(loader, model, optimizer, criterion, scaler, indices, device):
+def predict(loader, model, optimizer, criterion, scaler, indices, device, length):
     if pred_type == "mse" or pred_type == "L1Loss":
-        return predict_for_mse_loss(loader, model, optimizer, criterion, scaler, indices, device)
+        return predict_for_mse_loss(loader, model, optimizer, criterion, scaler, indices, device, length)
     elif pred_type == "nll":
-        return predict_for_mc_dropout(loader, model, optimizer, criterion, scaler, indices, device)
+        return predict_for_mc_dropout(loader, model, optimizer, criterion, scaler, indices, device, length)
     else:
         raise ValueError("loss_type must be either mse or nll")

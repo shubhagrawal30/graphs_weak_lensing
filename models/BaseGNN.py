@@ -22,15 +22,16 @@ class baseGNN(torch.nn.Module):
         self.dropout = dropout
         self.negative_slope = negative_slope
 
-        self.node_norm = BatchNorm(node_features)
-        self.edge_norm = BatchNorm(edge_features)
+        # self.node_norm = BatchNorm(node_features)
+        # self.edge_norm = BatchNorm(edge_features)
         
-        self.convs = torch.nn.ModuleList()
+        # self.convs = torch.nn.ModuleList()
         
-        self.readout = aggr.SumAggregation()
+        # self.readout = aggr.SumAggregation()
         # self.readout = aggr.SoftmaxAggregation(learn=True)
-        self.linears = torch.nn.ModuleList([Linear(lin_in, lin_in)])
-        self.linear_fin = Linear(lin_in, num_classes)
+        # self.linears = torch.nn.ModuleList([Linear(lin_in, lin_in), Linear(lin_in, lin_in)])
+        # added a layer here
+        # self.linear_fin = Linear(lin_in, num_classes)
 
     def forward(self, data):
         x, edge_index, edge_attr = data.x, data.edge_index.to(torch.int64), data.edge_attr

@@ -24,13 +24,21 @@ print(device)
 # from GINE import GINE, set_up_model, train, test, predict
 # out_name = "20231231_GINE_test"
 
-from HetGINE import HetGINE, set_up_model, train, test, predict
-out_name = "20231231_HetGINE"
+# from HetGINE import HetGINE, set_up_model, train, test, predict
+# out_name = "20240112_HetGINE"
+
+# from HistGINE import HistGINE, set_up_model, train, test, predict
+# out_name = "20240112_HistGINE"
 
 # from VanillaGCN import VanillaGCN, set_up_model, train, test, predict
 # out_name = "20231123_GCN"
 
-num_epochs = 10
+from EdgeNN import EdgeNN, set_up_model, train, test, predict
+out_name = "20240116_EdgeNN"
+
+# num_epochs = 400
+num_epochs = 50
+best_epoch = -1
 pathlib.Path(f"../outs/{out_name}/chkpts/").mkdir(parents=True, exist_ok=True)
 overwrite_epochs = False
 overwrite_logs = False
@@ -52,7 +60,7 @@ orig_labels = ['om', 'h', 's8', 'w', 'ob', 'ns']
 indices = orig_labels.index("om"), orig_labels.index("s8")
 num_classes = len(indices)
 
-batch_size = 64
+batch_size = 128
 # note that this slicing does not bring the dataset into memory
 train_dataset, val_dataset, test_dataset = dataset[:int(0.8 * len(dataset))], \
     dataset[int(0.8 * len(dataset)):int(0.9 * len(dataset))], dataset[int(0.9 * len(dataset)):]
@@ -74,13 +82,13 @@ except:
     true = np.array([])
     for i, data in tqdm.tqdm(enumerate(train_loader), total=len(train_loader)):
         for j, dpt in enumerate(data):
-            if j == 0:
+            if j == 0 and True:
                 true = np.append(true, dpt.y)
-                chk = dpt.y
-                chk_ng = dpt.num_graphs
-            else:
-                assert np.allclose(chk, dpt.y)
-                assert chk_ng == dpt.num_graphs
+                # chk = dpt.y
+                # chk_ng = dpt.num_graphs
+            # else:
+            #     assert np.allclose(chk, dpt.y)
+            #     assert chk_ng == dpt.num_graphs
     scaler.fit(true.reshape(-1, 6)[:, indices])
     joblib.dump(scaler, f"../outs/{out_name}/scaler.pkl")
 
@@ -89,7 +97,6 @@ args = model, optimizer, criterion, scaler, indices, device
 
 # save all training and validation losses and the model with best validation loss
 best_val_loss = np.inf
-best_epoch = -1
 print("training")
 for epoch in range(num_epochs):
     with open(f"../outs/{out_name}/log.txt", "a") as f:
@@ -120,6 +127,11 @@ for epoch in range(num_epochs):
         del train_loss, val_loss
         gc.collect()
         torch.cuda.empty_cache()
+        
+        # print(model.edge_layer[0].beta)
+        # print(model.edge_layer[0].beta.retains_grad)
+        # print(list(model.parameters())[0].grad)
+        # print(list(model.parameters()))
 
 print("saving model")
 torch.save(model.state_dict(), f"../outs/{out_name}/last_model.pt")
@@ -170,7 +182,7 @@ def plotting_for_mc_dropout(loader, pred_true_filename, hist_filenames):
     plt.savefig(hist_filenames)
     plt.close()
 
-def plotting_for_mse_loss(loader, pred_true_filename, hist_filenames):
+def plotting_for_mse_loss(loader, pred_true_filename, hist_filenames): # or L1Loss
     print("predicting")
     preds, true = predict(loader, *args)
 
@@ -218,5 +230,3 @@ else:
         print("best model is last model")
 
 print("done!")
-f.write("done!\n")
-f.close()
